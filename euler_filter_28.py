@@ -4,8 +4,8 @@ from mathutils import Euler
 import itertools
 
 bl_info = {
-    "name": "Euler Filter, Artell",
-    "author": "Manuel Odendahl",
+    "name": "Euler Filter",
+    "author": "Manuel Odendahl, Artell",
     "version": (0, 1),
     "blender": (2, 80, 0),
     "location": "Search > Euler Filter",
