@@ -167,6 +167,8 @@ def get_selected_rotation_fcurves(context):
             continue
 
         bone, prop = split_data_path(fc.data_path)
+        if bone != 'pose.bones["'+bpy.context.active_pose_bone.name+'"]':
+            continue
         if prop != "rotation_euler":
             continue
 
