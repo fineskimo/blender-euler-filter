@@ -6,7 +6,7 @@ import itertools
 bl_info = {
     "name": "Euler Filter",
     "author": "Manuel Odendahl, Artell",
-    "version": (0, 1),
+    "version": (0, 2),
     "blender": (2, 80, 0),
     "location": "Search > Euler Filter",
     "description": "Euler Filter",
@@ -138,7 +138,10 @@ def get_bone_from_fcurve(obj, fcurve):
     :param fcurve: the fcurve
     :return: the resolved bone
     """
-    bone, prop = split_data_path(fcurve.data_path)
+    if len(split_data_path(fcurve.data_path)) > 1:# bone case
+        bone, prop = split_data_path(fcurve.data_path)
+    else:# object case
+        return obj
     return obj.path_resolve(bone)
 
 
@@ -165,20 +168,27 @@ def get_selected_rotation_fcurves(context):
     for fc in fcurves:
         if not fc.select:
             continue
-
-        bone, prop = split_data_path(fc.data_path)
-        
-        
-        if bone != 'pose.bones["'+bpy.context.active_pose_bone.name+'"]':
-            continue
             
-        if prop != "rotation_euler":
-            continue
+        if len(split_data_path(fc.data_path)) > 1:# bones animation
+            bone, prop = split_data_path(fc.data_path)
+        
+        
+            if bone != 'pose.bones["'+bpy.context.active_pose_bone.name+'"]':
+                continue
+            
+            if prop != "rotation_euler":
+                continue
 
-        if not selected_bone:
-            selected_bone = bone
-        if bone != selected_bone:
-            return None, "Only select the rotation of a single object"
+            if not selected_bone:
+                selected_bone = bone
+            print("selected bone", selected_bone)
+            if bone != selected_bone:
+                return None, "Only select the rotation of a single object"
+                
+        else:#object animation
+            prop = fc.data_path
+            if prop != "rotation_euler":
+                continue
 
         selected_fcurves.append(fc)
 
@@ -202,7 +212,7 @@ def get_selected_rotation_keyframes(context):
     :return: keyframes, fcurves, error_string
     """
     fcurves, error = get_selected_rotation_fcurves(context)
-    if not fcurves or len(fcurves) != 3:
+    if not fcurves or len(fcurves) != 3:                        
         return None, None, error
 
     fcu_keyframes = [get_selected_fcu_keyframe_numbers(fcu) for fcu in fcurves]
