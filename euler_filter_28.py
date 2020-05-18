@@ -1,5 +1,5 @@
 import bpy
-from math import pi
+from math import pi, radians, degerees
 from mathutils import Euler
 import itertools
 
@@ -16,6 +16,7 @@ bl_info = {
     "category": "Animation"
 }
 
+# not used?
 def get_fcu_keyframe_numbers(fcu):
     return sorted([p.co[0] for p in fcu.keyframe_points])
 
@@ -24,31 +25,20 @@ def get_selected_fcu_keyframe_numbers(fcu):
     return sorted([p.co[0] for p in fcu.keyframe_points if p.select_control_point])
 
 
+# not used?
 def update_euler_keyframes(bone, keyframes):
     for kf in keyframes:
         bone.rotation_euler = kf["rotation_euler"]
         bone.keyframe_insert(data_path='rotation_euler', frame=kf["key"])
 
 
-#################################################
 # actual euler filter
-
+# not used ?
 def euler_to_string(e):
-    return "%.2f, %.2f, %.2f" % (r(e[0]), r(e[1]), r(e[2]))
+    return "%.2f, %.2f, %.2f" % (radians(e[0]), radians(e[1]), radians(e[2]))
 
 
-def degrees(a):
-    return a / 360.0 * 2 * pi
-
-
-def d(a):
-    return degrees(a)
-
-
-def r(a):
-    return a / (2 * pi) * 360.0
-
-
+# not used?
 def wrap_angle(a):
     return (a + pi) % (2 * pi) - pi
 
@@ -70,8 +60,8 @@ def euler_axis_index(axis):
 def flip_euler(euler, rotation_mode):
     ret = euler.copy()
     inner_axis = rotation_mode[0]
-    outer_axis = rotation_mode[2]
     middle_axis = rotation_mode[1]
+    outer_axis = rotation_mode[2]
 
     ret[euler_axis_index(inner_axis)] += pi
     ret[euler_axis_index(outer_axis)] += pi
@@ -138,9 +128,9 @@ def get_bone_from_fcurve(obj, fcurve):
     :param fcurve: the fcurve
     :return: the resolved bone
     """
-    if len(split_data_path(fcurve.data_path)) > 1:# bone case
+    if len(split_data_path(fcurve.data_path)) > 1:  # bone case
         bone, prop = split_data_path(fcurve.data_path)
-    else:# object case
+    else:  # object case
         return obj
     return obj.path_resolve(bone)
 
@@ -168,14 +158,13 @@ def get_selected_rotation_fcurves(context):
     for fc in fcurves:
         if not fc.select:
             continue
-            
-        if len(split_data_path(fc.data_path)) > 1:# bones animation
+
+        if len(split_data_path(fc.data_path)) > 1:  # bones animation
             bone, prop = split_data_path(fc.data_path)
-        
-        
-            if bone != 'pose.bones["'+bpy.context.active_pose_bone.name+'"]':
+
+            if bone != 'pose.bones["' + bpy.context.active_pose_bone.name + '"]':
                 continue
-            
+
             if prop != "rotation_euler":
                 continue
 
@@ -184,8 +173,8 @@ def get_selected_rotation_fcurves(context):
             print("selected bone", selected_bone)
             if bone != selected_bone:
                 return None, "Only select the rotation of a single object"
-                
-        else:#object animation
+
+        else:  # object animation
             prop = fc.data_path
             if prop != "rotation_euler":
                 continue
@@ -203,6 +192,42 @@ def get_selected_rotation_fcurves(context):
     return selected_fcurves, None
 
 
+def get_euler_fcurves(obj, *args):
+    """
+    Returns the rotation euler curves from an object, if x,y,z euler curves found
+    *args expects pose bone
+    """
+    obj = bpy.context.object
+
+    if not obj.animation_data:
+        return None, "Object has no animation data"
+    if not obj.animation_data.action:
+        return None, "Object has no action"
+
+    obj_fcurves = obj.animation_data.action.fcurves
+    fcurves = []
+
+    if args and obj.type == 'ARMATURE' and bpy.context.mode == 'POSE':
+        pbone = arg[0]
+        path = pbone.path_from_id()
+        x_fcurve = obj_fcurves.find(f"{path}.rotation_euler", index=0)
+        y_fcurve = obj_fcurves.find(f"{path}.rotation_euler", index=1)
+        z_fcurve = obj_fcurves.find(f"{path}.rotation_euler", index=2)
+
+    else:
+        x_fcurve = obj_fcurves.find('rotation_euler', index=0)
+        y_fcurve = obj_fcurves.find('rotation_euler', index=1)
+        z_fcurve = obj_fcurves.find('rotation_euler', index=2)
+
+    if not x_fcurve or not y_fcurve or not z_fcurve:
+        self.report({'INFO'}, "XYZ Euler data not found")
+
+    else:
+        fcurves = [x_fcurve, y_fcurve, z_fcurve]
+
+    return selected_fcurves, None
+
+
 def get_selected_rotation_keyframes(context):
     """
     Returns the selected rotation keyframes.
@@ -212,7 +237,7 @@ def get_selected_rotation_keyframes(context):
     :return: keyframes, fcurves, error_string
     """
     fcurves, error = get_selected_rotation_fcurves(context)
-    if not fcurves or len(fcurves) != 3:                        
+    if not fcurves or len(fcurves) != 3:
         return None, None, error
 
     fcu_keyframes = [get_selected_fcu_keyframe_numbers(fcu) for fcu in fcurves]
@@ -234,27 +259,30 @@ def get_selected_rotation_keyframes(context):
     return res, fcurves, None
 
 
-def refresh_fcurve_editor(context):
-    """
-    Execute a meaningless command on F-Curve Editor which has the effect of
-    refreshing the graph.
+def run_filter(obj):
+    kfs, fcus, error = get_selected_rotation_keyframes(context)
+    if not kfs:
+        self.report({'ERROR'}, error)
+        return {'CANCELLED'}
 
-    From: http://blender.stackexchange.com/questions/7261/refresh-an-f-curve-with-python-after-changing-extrapolation-mode
+    bone = get_bone_from_fcurve(context.active_object, fcus[0])
 
-    XXX Sadly selects all the values.
-    """
-    old_area_type = context.area.type
-    context.area.type = 'GRAPH_EDITOR'
-    bpy.ops.graph.clean(threshold=0)
-    context.area.type = old_area_type
+    efs = euler_filter(kfs, bone.rotation_mode)
 
-#################################################
+    for i in range(len(efs)):
+        e = efs[i]["rotation_euler"]
+        frame = efs[i]["key"]
+        # p = kfs[i]["rotation_euler"]
+        # print("%s -> %s" % (euler_to_string(p), euler_to_string(e)))
+        for i in range(3):
+            fcus[i].keyframe_points.insert(frame=frame, value=e[i])
 
-# noinspection PyPep8Naming
+        fcu[i].update()
+
+    return {'FINISHED'}
+
+
 class GRAPH_OT_EulerFilter(bpy.types.Operator):
-    """Filter euler rotations to remove danger of gimbal lock.
-    """
-
     bl_idname = "graph.euler_filter"
     bl_label = "Euler Filter"
     bl_description = "Filter euler rotations to remove danger of gimbal lock"
@@ -264,7 +292,7 @@ class GRAPH_OT_EulerFilter(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        fcus = get_selected_rotation_fcurves(context)
+        fcus = get_euler_fcurves(obj, bone)
         return fcus
 
     def execute(self, context):
@@ -285,73 +313,22 @@ class GRAPH_OT_EulerFilter(bpy.types.Operator):
             for i in range(3):
                 fcus[i].keyframe_points.insert(frame=frame, value=e[i])
 
-        refresh_fcurve_editor(context)
+            fcu[i].update()
 
         return {'FINISHED'}
-
-
-#################################################
 
 
 def register():
     from bpy.utils import register_class
 
-  
     register_class(GRAPH_OT_EulerFilter)
-  
+
 
 def unregister():
-    from bpy.utils import unregister_class    
-   
+    from bpy.utils import unregister_class
+
     unregister_class(GRAPH_OT_EulerFilter)
 
 
 if __name__ == "__main__":
     register()
-
-#################################################
-
-def test():
-    def get_euler_keyframes(action, bone=None):
-        if bone:
-            data_path = bone.path_from_id() + ".rotation_euler"
-            rotation_mode = bone.rotation_mode
-        else:
-            rotation_mode = "XYZ"
-            data_path = "rotation_euler"
-        fcurves = [get_fcurve_for_data_path(action, data_path, i) for i in range(0, 3)]
-
-        keyframes = sorted(set(itertools.chain.from_iterable([get_fcu_keyframe_numbers(fcu) for fcu in fcurves])))
-
-        res = []
-        for keyframe in keyframes:
-            euler = Euler([fcurve.evaluate(keyframe) for fcurve in fcurves], rotation_mode)
-            res += [{
-                "key": keyframe,
-                "rotation_euler": euler,
-            }]
-
-        return res
-
-    def get_fcurve_for_data_path(action, data_path, index):
-        for fcu in action.fcurves:
-            if fcu.data_path == data_path and fcu.array_index == index:
-                return fcu
-        return action.fcurves.new(data_path, index=index)
-
-    scene = bpy.context.scene
-    scene.frame_current = 1
-    (scene.frame_start, scene.frame_end)
-
-    action = bpy.data.actions["Action"]
-    hector = bpy.data.objects['Hector_RIG_proxy']
-
-    head = hector.pose.bones['Head_CTRL']
-
-    kfs = get_euler_keyframes(action, head)
-
-    efs = euler_filter(kfs)
-    for i in range(len(efs)):
-        e = efs[i]["rotation_euler"]
-        p = kfs[i]["rotation_euler"]
-        print("%s -> %s" % (euler_to_string(p), euler_to_string(e)))
