@@ -16,6 +16,7 @@ bl_info = {
     "category": "Animation"
 }
 
+
 def get_fcu_keyframe_numbers(fcu):
     return sorted([p.co[0] for p in fcu.keyframe_points])
 
@@ -167,7 +168,7 @@ def get_selected_rotation_fcurves(context):
             continue
 
         bone, prop = split_data_path(fc.data_path)
-        if bone != 'pose.bones["'+bpy.context.active_pose_bone.name+'"]':
+        if bone != 'pose.bones["' + bpy.context.active_pose_bone.name + '"]':
             continue
         if prop != "rotation_euler":
             continue
@@ -237,6 +238,7 @@ def refresh_fcurve_editor(context):
 
 #################################################
 
+
 # noinspection PyPep8Naming
 class GRAPH_OT_EulerFilter(bpy.types.Operator):
     """Filter euler rotations to remove danger of gimbal lock.
@@ -291,6 +293,7 @@ if __name__ == "__main__":
     register()
 
 #################################################
+
 
 def test():
     def get_euler_keyframes(action, bone=None):
